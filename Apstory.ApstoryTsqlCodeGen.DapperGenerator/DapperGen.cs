@@ -24,6 +24,7 @@ namespace Apstory.ApstoryTsqlCodeGen.DapperGenerator
                 var tablesWithIndexes = await _TableRepository.GetDBTablesWithIndexes(schema);
 
                 GenerateBaseRepository(path, classNamespace);
+                GenerateDapperExtension(path, classNamespace);
 
                 if (_Threaded)
                 {
@@ -60,7 +61,7 @@ namespace Apstory.ApstoryTsqlCodeGen.DapperGenerator
 
                 var sb = new StringBuilder();
                 sb.Append(AddHeader(classNamespace, table.TABLE_NAME, schema));
-                GenerateDapperInsUpd(sb, table, path, classNamespace, schema);
+                await GenerateDapperInsUpd(sb, table, path, classNamespace, schema);
                 await GenerateDapperGetById(sb, table, path, classNamespace, schema);
                 await GenerateDapperGetByNameIds(sb, table, path, classNamespace, schema);
                 await GenerateDapperGetByIds(sb, table, path, classNamespace, schema);
@@ -75,9 +76,9 @@ namespace Apstory.ApstoryTsqlCodeGen.DapperGenerator
                 LogOutputLine();
                 string fileName = table.TABLE_NAME + "Repository" + (addSchemaPath ? "." + schema.ToUpper() : string.Empty) + ".Gen.cs";
                 string filePath;
-                
+
                 if (_GenPath.Length > 0)
-                    filePath = Path.Join( path, (addSchemaPath ? schema.ToUpper() : string.Empty), _GenPath.Replace(".", ""), fileName);
+                    filePath = Path.Join(path, (addSchemaPath ? schema.ToUpper() : string.Empty), _GenPath.Replace(".", ""), fileName);
                 else
                     filePath = Path.Join(path, (addSchemaPath ? schema.ToUpper() : string.Empty), fileName);
 
@@ -93,8 +94,6 @@ namespace Apstory.ApstoryTsqlCodeGen.DapperGenerator
         {
             bool addSchemaPath = (schema != "dbo"); try
             {
-
-
                 var sb = new StringBuilder();
                 sb.Append(AddHeaderIndex(classNamespace, table.TABLE_NAME, schema));
                 await GenerateDapperGetByIndex(sb, table, path, classNamespace, schema);
@@ -142,8 +141,68 @@ namespace Apstory.ApstoryTsqlCodeGen.DapperGenerator
 
             LogOutputLine(sb.ToString());
 
-            string fileName = "BaseRepository.Gen.cs";
-            string filePath = path + fileName;
+            string fileName = "BaseRepository.Gen.cs";            
+            string filePath = path + "/" + fileName;
+            Shared.Utils.GeneratorUtils.WriteToFile(filePath, sb.ToString());
+        }
+
+        private void GenerateDapperExtension(string path, string classNamespace)
+        {
+            LogOutputLine("Generate DapperExtensions");
+            StringBuilder sb = new StringBuilder();
+
+            sb.Append("using System.ComponentModel;" + _NewLine +
+            "using System.Data;" + _NewLine + _NewLine +
+            "namespace " + classNamespace + ".Dal.Dapper" + _GenPathNamespace + _NewLine +
+            "{" + _NewLine +
+            _Tab + "public static class DapperExtension" + _NewLine +
+            _Tab + "{" + _NewLine +
+            _Tab + _Tab + "public static DataTable ToDataTable<T>(this List<T> iList)" + _NewLine +
+            _Tab + _Tab + "{" + _NewLine +
+            _Tab + _Tab + _Tab + "DataTable dataTable = new DataTable();" + _NewLine +
+            _Tab + _Tab + _Tab + "dataTable.Columns.Add(\"Id\", typeof(T));" + _NewLine +
+            _Tab + _Tab + _Tab + "foreach (T iListItem in iList)" + _NewLine +
+            _Tab + _Tab + _Tab + _Tab + "dataTable.Rows.Add(iListItem);" + _NewLine +
+            _Tab + _Tab + _Tab + "return dataTable;" + _NewLine +
+            _Tab + _Tab + "}" + _NewLine +
+            _Tab + _Tab + "public static DataTable ToDataTable<T>(this List<T> iList, string columnName)" + _NewLine +
+            _Tab + _Tab + "{" + _NewLine +
+            _Tab + _Tab + _Tab + "DataTable dataTable = new DataTable();" + _NewLine +
+            _Tab + _Tab + _Tab + "PropertyDescriptorCollection propertyDescriptorCollection = TypeDescriptor.GetProperties(typeof(T));" + _NewLine +
+            _Tab + _Tab + _Tab + "for (int i = 0; i < propertyDescriptorCollection.Count; i++)" + _NewLine +
+            _Tab + _Tab + _Tab + "{" + _NewLine +
+            _Tab + _Tab + _Tab + _Tab + "PropertyDescriptor propertyDescriptor = propertyDescriptorCollection[i];" + _NewLine +
+            _Tab + _Tab + _Tab + _Tab + "Type type = propertyDescriptor.PropertyType;" + _NewLine +
+            _Tab + _Tab + _Tab + _Tab + "if (type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>))" + _NewLine +
+            _Tab + _Tab + _Tab + _Tab + _Tab + "type = Nullable.GetUnderlyingType(type);" + _NewLine +
+            _Tab + _Tab + _Tab + _Tab + "if (propertyDescriptor.Name == columnName)" + _NewLine +
+            _Tab + _Tab + _Tab + _Tab + "{" + _NewLine +
+            _Tab + _Tab + _Tab + _Tab + _Tab + "dataTable.Columns.Add(propertyDescriptor.Name, type);" + _NewLine +
+            _Tab + _Tab + _Tab + _Tab + "}" + _NewLine +
+            _Tab + _Tab + _Tab + "}" + _NewLine +
+            _Tab + _Tab + _Tab + "object[] values = new object[propertyDescriptorCollection.Count];" + _NewLine +
+            _Tab + _Tab + _Tab + "object v = new object();" + _NewLine +
+            _Tab + _Tab + _Tab + "foreach (T iListItem in iList)" + _NewLine +
+            _Tab + _Tab + _Tab + "{" + _NewLine +
+            _Tab + _Tab + _Tab + _Tab + "for (int i = 0; i < values.Length; i++)" + _NewLine +
+            _Tab + _Tab + _Tab + _Tab + "{" + _NewLine +
+            _Tab + _Tab + _Tab + _Tab + _Tab + "values[i] = propertyDescriptorCollection[i].GetValue(iListItem);" + _NewLine +
+            _Tab + _Tab + _Tab + _Tab + _Tab + "if (propertyDescriptorCollection[i].Name == columnName)" + _NewLine +
+            _Tab + _Tab + _Tab + _Tab + _Tab + "{" + _NewLine +
+            _Tab + _Tab + _Tab + _Tab + _Tab + _Tab + "v = values[i];" + _NewLine +
+            _Tab + _Tab + _Tab + _Tab + _Tab + _Tab + "dataTable.Rows.Add(v);" + _NewLine +
+            _Tab + _Tab + _Tab + _Tab + _Tab + "}" + _NewLine +
+            _Tab + _Tab + _Tab + _Tab + "}" + _NewLine +
+            _Tab + _Tab + _Tab + "}" + _NewLine +
+            _Tab + _Tab + _Tab + "return dataTable;" + _NewLine +
+            _Tab + _Tab + "}" + _NewLine +
+            _Tab + "}" + _NewLine +
+            "}");
+
+            LogOutputLine(sb.ToString());
+
+            string fileName = "DapperExtension.Gen.cs";
+            string filePath = path + "/" + fileName;
             Shared.Utils.GeneratorUtils.WriteToFile(filePath, sb.ToString());
         }
 
@@ -443,7 +502,7 @@ namespace Apstory.ApstoryTsqlCodeGen.DapperGenerator
                 "using " + classNamespace + ".Dal.Interface" + (addSchema ? "." + schema.ToUpper() : "") + _GenPathNamespace + ";" + _NewLine +
                 "using System.Collections.Generic;" + _NewLine +
                 "using System.Threading.Tasks;" + _NewLine +
-                "using " + classNamespace + ".Common.Util;" + _NewLine + _NewLine +
+                "using static " + classNamespace + ".Dal.Dapper.DapperExtension;" + _NewLine + _NewLine +
                 "namespace " + classNamespace + ".Dal.Dapper" + (addSchema ? "." + schema.ToUpper() : "") + _GenPathNamespace + _NewLine +
                 "{" + _NewLine +
                 _Tab + "public partial class " + tableName + "Repository : BaseRepository, I" + tableName + "Repository" + _NewLine +
@@ -511,13 +570,14 @@ namespace Apstory.ApstoryTsqlCodeGen.DapperGenerator
             {
                 if (columnType == "string" || columnType == "Microsoft.SqlServer.Types.SqlGeography")
                 {
-                    if(paramName.ToLower() == "sortdirection")
+                    if (paramName.ToLower() == "sortdirection")
                     {
                         sb.Append(columnType + " " + paramName + " = \"ASC\", ");
-                    } else
+                    }
+                    else
                     {
                         sb.Append(columnType + " " + paramName + ", ");
-                    }                    
+                    }
                 }
                 else
                 {

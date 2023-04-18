@@ -64,19 +64,7 @@ namespace Apstory.ApstoryTsqlCodeGen.DomainGenerator
                     var friendlyTableName = Shared.Utils.GeneratorUtils.CamelCase(table.TABLE_NAME);
 
                     sb.Append($"{_Tab}{_Tab}protected async Task<List<{classNamespace}.Model.{_ModelGenPath}{table.TABLE_NAME}>> Append{friendlyName}(List<{classNamespace}.Model.{_ModelGenPath}{table.TABLE_NAME}> {friendlyTableName}s){_NewLine}");
-                    sb.Append($"{_Tab}{_Tab}{{{_NewLine}");
-
-
-                    //if (foreign.ColumnType == "byte")
-                    //{
-                    //    sb.Append($"{_Tab}{_Tab}{_Tab}foreach(var {friendlyTableName} in {friendlyTableName}s){_NewLine}");
-                    //    sb.Append($"{_Tab}{_Tab}{_Tab}{{{_NewLine}");
-                    //    sb.Append($"{_Tab}{_Tab}{_Tab}{_Tab}{friendlyTableName}.{friendlyName} = new {friendlyName}() {{ {friendlyName} = {friendlyTableName}.{foreign.ColumnName}, {friendlyName} = (({foreign.ColumnName}){friendlyTableName}.{foreign.ColumnName}).ToString().Replace(\"_\", \" \") }}");
-                    //    sb.Append($"{_Tab}{_Tab}{_Tab}}}{_NewLine}");
-                    //}
-                    //else
-                    //{
-                    //Determine Distinct Ids:
+                    sb.Append($"{_Tab}{_Tab}{{{_NewLine}");                    
 
                     if (foreign.ColumnType == "byte")
                     {
@@ -91,7 +79,7 @@ namespace Apstory.ApstoryTsqlCodeGen.DomainGenerator
 
                         //Get all foreign entries:
 
-                        sb.Append($"{_Tab}{_Tab}{_Tab}var distinct{friendlyName}s = await _{Shared.Utils.GeneratorUtils.CamelCase(foreign.ForeignTable)}Repo.Get{foreign.ForeignTable}By{foreign.ForeignTable}Ids(distinct{friendlyName}Ids, null);{_NewLine}{_NewLine}");
+                        sb.Append($"{_Tab}{_Tab}{_Tab}var distinct{friendlyName}s = await _{Shared.Utils.GeneratorUtils.CamelCase(foreign.ForeignTable)}Repo.Get{foreign.ForeignTable}By{foreign.ForeignTable}Ids(distinct{friendlyName}Ids);{_NewLine}{_NewLine}");
                     }
 
 
