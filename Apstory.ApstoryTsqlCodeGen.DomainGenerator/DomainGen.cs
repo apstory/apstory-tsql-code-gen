@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Apstory.ApstoryTsqlCodeGen.Shared.Interfaces;
 using Apstory.ApstoryTsqlCodeGen.Shared.Service;
 using Apstory.ApstoryTsqlCodeGen.Shared.Models;
+using System.Collections.Generic;
 
 namespace Apstory.ApstoryTsqlCodeGen.DomainGenerator
 {
@@ -19,6 +20,7 @@ namespace Apstory.ApstoryTsqlCodeGen.DomainGenerator
         {
             var tables = await _TableRepository.GetDBTables(schema);
             var tablesWithIndexes = await _TableRepository.GetDBTablesWithIndexes(schema);
+            var groupedTablesWithIndexes = tablesWithIndexes.GroupBy(s => s.TABLE_NAME).ToList();
 
             try
             {
@@ -32,12 +34,12 @@ namespace Apstory.ApstoryTsqlCodeGen.DomainGenerator
                             GenerateDomainTableIncludeForeignKeys(table, path, classNamespace, schema).Wait();
                     });
 
-                    Parallel.ForEach(tablesWithIndexes, (tableWithIndex) =>
+                    Parallel.ForEach(groupedTablesWithIndexes, (tablesWithIndex) =>
                     {
-                        GenerateDomainIndexedTable(tableWithIndex, path, classNamespace, schema).Wait();
+                        GenerateDomainIndexedTable(tablesWithIndex.ToList(), path, classNamespace, schema).Wait();
 
                         if (includeForeignKeys)
-                            GenerateDomainIndexedTableIncludeForeignKeys(tableWithIndex, path, classNamespace, schema).Wait();
+                            GenerateDomainIndexedTableIncludeForeignKeys(tablesWithIndex.ToList(), path, classNamespace, schema).Wait();
                     });
                 }
                 else
@@ -50,12 +52,12 @@ namespace Apstory.ApstoryTsqlCodeGen.DomainGenerator
                             await GenerateDomainTableIncludeForeignKeys(table, path, classNamespace, schema);
                     }
 
-                    foreach (var tableWithIndex in tablesWithIndexes)
+                    foreach (var tablesWithIndex in groupedTablesWithIndexes)
                     {
-                        await GenerateDomainIndexedTable(tableWithIndex, path, classNamespace, schema);
+                        await GenerateDomainIndexedTable(tablesWithIndex.ToList(), path, classNamespace, schema);
 
                         if (includeForeignKeys)
-                            await GenerateDomainIndexedTableIncludeForeignKeys(tableWithIndex, path, classNamespace, schema);
+                            await GenerateDomainIndexedTableIncludeForeignKeys(tablesWithIndex.ToList(), path, classNamespace, schema);
                     }
                 }
             }
@@ -90,7 +92,7 @@ namespace Apstory.ApstoryTsqlCodeGen.DomainGenerator
                 string fileName = table.TABLE_NAME + "Service" + (addSchemaPath ? "." + schema.ToUpper() : string.Empty) + ".Gen.cs";
                 string filePath;
                 if (_GenPath.Length > 0)
-                    filePath = Path.Join( path, (addSchemaPath ? schema.ToUpper() : string.Empty), _GenPath.Replace(".", ""), fileName);
+                    filePath = Path.Join(path, (addSchemaPath ? schema.ToUpper() : string.Empty), _GenPath.Replace(".", ""), fileName);
                 else
                     filePath = Path.Join(path, (addSchemaPath ? schema.ToUpper() : string.Empty), fileName);
                 Shared.Utils.GeneratorUtils.WriteToFile(filePath, sb.ToString());
@@ -101,27 +103,31 @@ namespace Apstory.ApstoryTsqlCodeGen.DomainGenerator
             }
         }
 
-        private async Task GenerateDomainIndexedTable(SqlTable tableWithIndex, string path, string classNamespace, string schema)
+        private async Task GenerateDomainIndexedTable(List<SqlTable> tablesWithIndex, string path, string classNamespace, string schema)
         {
             try
             {
+                var tableWithIndex = tablesWithIndex.First();
                 bool addSchemaPath = (schema != "dbo");
 
                 var sb = new StringBuilder();
                 sb.Append(AddHeaderIndex(classNamespace, tableWithIndex.TABLE_NAME, schema));
-                await GenerateDomainGetByIndex(sb, tableWithIndex, path, classNamespace, schema);
+                foreach (SqlTable param in tablesWithIndex)
+                {
+                    await GenerateDomainGetByIndex(sb, param, path, classNamespace, schema);
+                }
                 sb.Append(AddFooter());
                 LogOutputLine();
                 LogOutput(sb.ToString());
                 LogOutputLine();
                 string fileName = tableWithIndex.TABLE_NAME + "Service" + (addSchemaPath ? "." + schema.ToUpper() : string.Empty) + ".Index.Gen.cs";
                 string filePath;
-                
+
                 if (_GenPath.Length > 0)
-                    filePath = Path.Join( path, (addSchemaPath ? schema.ToUpper() : string.Empty), _GenPath.Replace(".", ""), fileName);
+                    filePath = Path.Join(path, (addSchemaPath ? schema.ToUpper() : string.Empty), _GenPath.Replace(".", ""), fileName);
                 else
                     filePath = Path.Join(path, (addSchemaPath ? schema.ToUpper() : string.Empty), fileName);
-                
+
                 Shared.Utils.GeneratorUtils.WriteToFile(filePath, sb.ToString());
             }
             catch (Exception ex)

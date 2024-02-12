@@ -22,6 +22,7 @@ namespace Apstory.ApstoryTsqlCodeGen.DapperGenerator
             {
                 var tables = await _TableRepository.GetDBTables(schema);
                 var tablesWithIndexes = await _TableRepository.GetDBTablesWithIndexes(schema);
+                var groupedTablesWithIndexes = tablesWithIndexes.GroupBy(s => s.TABLE_NAME).ToList();
 
                 GenerateBaseRepository(path, classNamespace);
 
@@ -32,9 +33,9 @@ namespace Apstory.ApstoryTsqlCodeGen.DapperGenerator
                         GenerateDapperTable(table, path, classNamespace, schema).Wait();
                     });
 
-                    Parallel.ForEach(tablesWithIndexes, (tableWithIndex) =>
+                    Parallel.ForEach(groupedTablesWithIndexes, (tablesWithIndex) =>
                     {
-                        GenerateDomainIndexedTable(tableWithIndex, path, classNamespace, schema).Wait();
+                        GenerateDomainIndexedTable(tablesWithIndex.ToList(), path, classNamespace, schema).Wait();
                     });
                 }
                 else
@@ -42,8 +43,8 @@ namespace Apstory.ApstoryTsqlCodeGen.DapperGenerator
                     foreach (var table in tables)
                         await GenerateDapperTable(table, path, classNamespace, schema);
 
-                    foreach (var tableWithIndex in tablesWithIndexes)
-                        await GenerateDomainIndexedTable(tableWithIndex, path, classNamespace, schema);
+                    foreach (var tablesWithIndex in groupedTablesWithIndexes)
+                        await GenerateDomainIndexedTable(tablesWithIndex.ToList(), path, classNamespace, schema);
                 }
             }
             catch (Exception ex)
@@ -75,9 +76,9 @@ namespace Apstory.ApstoryTsqlCodeGen.DapperGenerator
                 LogOutputLine();
                 string fileName = table.TABLE_NAME + "Repository" + (addSchemaPath ? "." + schema.ToUpper() : string.Empty) + ".Gen.cs";
                 string filePath;
-                
+
                 if (_GenPath.Length > 0)
-                    filePath = Path.Join( path, (addSchemaPath ? schema.ToUpper() : string.Empty), _GenPath.Replace(".", ""), fileName);
+                    filePath = Path.Join(path, (addSchemaPath ? schema.ToUpper() : string.Empty), _GenPath.Replace(".", ""), fileName);
                 else
                     filePath = Path.Join(path, (addSchemaPath ? schema.ToUpper() : string.Empty), fileName);
 
@@ -89,15 +90,18 @@ namespace Apstory.ApstoryTsqlCodeGen.DapperGenerator
             }
         }
 
-        private async Task GenerateDomainIndexedTable(SqlTable table, string path, string classNamespace, string schema)
+        private async Task GenerateDomainIndexedTable(List<SqlTable> tables, string path, string classNamespace, string schema)
         {
             bool addSchemaPath = (schema != "dbo"); try
             {
-
+                var table = tables.First();
 
                 var sb = new StringBuilder();
                 sb.Append(AddHeaderIndex(classNamespace, table.TABLE_NAME, schema));
-                await GenerateDapperGetByIndex(sb, table, path, classNamespace, schema);
+                
+                foreach (var param in tables)
+                    await GenerateDapperGetByIndex(sb, param, path, classNamespace, schema);
+
                 sb.Append(AddFooter());
                 LogOutputLine();
                 LogOutput(sb.ToString());
@@ -511,13 +515,14 @@ namespace Apstory.ApstoryTsqlCodeGen.DapperGenerator
             {
                 if (columnType == "string" || columnType == "Microsoft.SqlServer.Types.SqlGeography")
                 {
-                    if(paramName.ToLower() == "sortdirection")
+                    if (paramName.ToLower() == "sortdirection")
                     {
                         sb.Append(columnType + " " + paramName + " = \"ASC\", ");
-                    } else
+                    }
+                    else
                     {
                         sb.Append(columnType + " " + paramName + ", ");
-                    }                    
+                    }
                 }
                 else
                 {

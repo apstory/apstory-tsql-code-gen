@@ -6,6 +6,7 @@ using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using System.IO;
+using System.Collections.Generic;
 
 namespace Apstory.ApstoryTsqlCodeGen.InterfaceGenerator
 {
@@ -51,10 +52,11 @@ namespace Apstory.ApstoryTsqlCodeGen.InterfaceGenerator
         }
 
 
-        private async Task GenerateInterfaceIndexedTableIncludeForeignKeys(SqlTable tableWithIndex, string path, string type, string classNamespace, string schema)
+        private async Task GenerateInterfaceIndexedTableIncludeForeignKeys(List<SqlTable> tablesWithIndex, string path, string type, string classNamespace, string schema)
         {
             try
             {
+                var tableWithIndex = tablesWithIndex.First();
                 bool addSchema = (schema != "dbo");
 
                 var spParams = await _TableRepository.GetTableColumnsByTableName(tableWithIndex.TABLE_NAME, schema);
@@ -65,7 +67,9 @@ namespace Apstory.ApstoryTsqlCodeGen.InterfaceGenerator
 
                 var sb = new StringBuilder();
                 sb.Append(AddInterfaceHeader(classNamespace, tableWithIndex.TABLE_NAME, type, schema));
-                await GenerateInterfaceGetByIndexIncludeForeignKeys(sb, tableWithIndex, path, classNamespace, schema);
+                foreach (var table in tablesWithIndex)
+                    await GenerateInterfaceGetByIndexIncludeForeignKeys(sb, table, path, classNamespace, schema);
+
                 sb.Append(AddInterfaceFooter());
                 LogOutputLine();
                 LogOutput(sb.ToString());
@@ -128,7 +132,7 @@ namespace Apstory.ApstoryTsqlCodeGen.InterfaceGenerator
                 sb.Append($"{_Tab}{_Tab}Task<List<{classNamespace}.Model.{_ModelGenPath}{table.TABLE_NAME}>> Get{table.TABLE_NAME}By{table.TABLE_NAME}IdsIncludeForeignKeys(");
                 foreach (var item in spParams)
                 {
-                    sb.Append(AddInterfaceMethodNullableAndNormalParams(item.ColumnType, Shared.Utils.GeneratorUtils.CamelCase(item.ParameterName.Remove(0,1))));
+                    sb.Append(AddInterfaceMethodNullableAndNormalParams(item.ColumnType, Shared.Utils.GeneratorUtils.CamelCase(item.ParameterName.Remove(0, 1))));
                 }
                 sb.Remove(sb.Length - 2, 2);
                 sb.Append(");" + _NewLine);

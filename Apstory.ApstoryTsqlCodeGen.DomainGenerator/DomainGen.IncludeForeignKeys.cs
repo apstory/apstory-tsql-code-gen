@@ -162,10 +162,11 @@ namespace Apstory.ApstoryTsqlCodeGen.DomainGenerator
             return sb;
         }
 
-        private async Task GenerateDomainIndexedTableIncludeForeignKeys(SqlTable tableWithIndex, string path, string classNamespace, string schema)
+        private async Task GenerateDomainIndexedTableIncludeForeignKeys(List<SqlTable> tablesWithIndex, string path, string classNamespace, string schema)
         {
             try
             {
+                var tableWithIndex = tablesWithIndex.First();
                 bool addSchema = (schema != "dbo");
 
                 var spParams = await _TableRepository.GetTableColumnsByTableName(tableWithIndex.TABLE_NAME, schema);
@@ -176,7 +177,8 @@ namespace Apstory.ApstoryTsqlCodeGen.DomainGenerator
 
                 var sb = new StringBuilder();
                 sb.Append(AddHeaderIndex(classNamespace, tableWithIndex.TABLE_NAME, schema));
-                await GenerateDomainGetByIndexIncludeForeignKeys(sb, tableWithIndex, path, classNamespace, schema, foreignParams);
+                foreach (var param in tablesWithIndex)
+                    await GenerateDomainGetByIndexIncludeForeignKeys(sb, param, path, classNamespace, schema, foreignParams);
                 sb.Append(AddFooter());
                 LogOutputLine();
                 LogOutput(sb.ToString());

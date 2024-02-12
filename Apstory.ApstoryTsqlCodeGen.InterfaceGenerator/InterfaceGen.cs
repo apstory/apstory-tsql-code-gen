@@ -6,6 +6,7 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 
 namespace Apstory.ApstoryTsqlCodeGen.InterfaceGenerator
 {
@@ -19,6 +20,7 @@ namespace Apstory.ApstoryTsqlCodeGen.InterfaceGenerator
         {
             var tables = await _TableRepository.GetDBTables(schema);
             var tablesWithIndexes = await _TableRepository.GetDBTablesWithIndexes(schema);
+            var groupedTablesWithIndexes = tablesWithIndexes.GroupBy(s => s.TABLE_NAME).ToList();
 
             try
             {
@@ -32,12 +34,12 @@ namespace Apstory.ApstoryTsqlCodeGen.InterfaceGenerator
                             GenerateInterfaceTableIncludeForeignKeys(table, path, type, classNamespace, schema).Wait();
                     });
 
-                    Parallel.ForEach(tablesWithIndexes, (tableWithIndex) =>
+                    Parallel.ForEach(groupedTablesWithIndexes, (tablesWithIndex) =>
                     {
-                        GenerateInterfaceIndexedTable(tableWithIndex, path, type, classNamespace, schema).Wait();
+                        GenerateInterfaceIndexedTable(tablesWithIndex.ToList(), path, type, classNamespace, schema).Wait();
 
                         if (includeForeignKeys)
-                            GenerateInterfaceIndexedTableIncludeForeignKeys(tableWithIndex, path, type, classNamespace, schema).Wait();
+                            GenerateInterfaceIndexedTableIncludeForeignKeys(tablesWithIndex.ToList(), path, type, classNamespace, schema).Wait();
                     });
                 }
                 else
@@ -50,12 +52,12 @@ namespace Apstory.ApstoryTsqlCodeGen.InterfaceGenerator
                             await GenerateInterfaceTableIncludeForeignKeys(table, path, type, classNamespace, schema);
                     }
 
-                    foreach (var tableWithIndex in tablesWithIndexes)
+                    foreach (var tablesWithIndex in groupedTablesWithIndexes)
                     {
-                        await GenerateInterfaceIndexedTable(tableWithIndex, path, type, classNamespace, schema);
+                        await GenerateInterfaceIndexedTable(tablesWithIndex.ToList(), path, type, classNamespace, schema);
 
                         if (includeForeignKeys)
-                            await GenerateInterfaceIndexedTableIncludeForeignKeys(tableWithIndex, path, type, classNamespace, schema);
+                            await GenerateInterfaceIndexedTableIncludeForeignKeys(tablesWithIndex.ToList(), path, type, classNamespace, schema);
                     }
                 }
             }
@@ -88,9 +90,9 @@ namespace Apstory.ApstoryTsqlCodeGen.InterfaceGenerator
                 LogOutputLine();
                 string fileName = "I" + table.TABLE_NAME + type + (addSchemaPath ? "." + schema.ToUpper() : "") + ".Gen.cs";
                 string filePath;
-                
+
                 if (_GenPath.Length > 0)
-                    filePath = Path.Join( path, (addSchemaPath ? schema.ToUpper() : string.Empty), _GenPath.Replace(".", ""), fileName);
+                    filePath = Path.Join(path, (addSchemaPath ? schema.ToUpper() : string.Empty), _GenPath.Replace(".", ""), fileName);
                 else
                     filePath = Path.Join(path, (addSchemaPath ? schema.ToUpper() : string.Empty), fileName);
 
@@ -103,15 +105,20 @@ namespace Apstory.ApstoryTsqlCodeGen.InterfaceGenerator
         }
 
 
-        private async Task GenerateInterfaceIndexedTable(SqlTable tableWithIndex, string path, string type, string classNamespace, string schema)
+        private async Task GenerateInterfaceIndexedTable(List<SqlTable> tablesWithIndex, string path, string type, string classNamespace, string schema)
         {
             try
             {
+                var tableWithIndex = tablesWithIndex.First();
+
                 bool addSchemaPath = (schema != "dbo");
 
                 var sb = new StringBuilder();
                 sb.Append(AddInterfaceHeader(classNamespace, tableWithIndex.TABLE_NAME, type, schema));
-                await GenerateInterfaceGetByIndex(sb, tableWithIndex, path, classNamespace, schema);
+
+                foreach (var table in tablesWithIndex)
+                    await GenerateInterfaceGetByIndex(sb, table, path, classNamespace, schema);
+
                 sb.Append(AddInterfaceFooter());
                 LogOutputLine();
                 LogOutput(sb.ToString());
@@ -119,7 +126,7 @@ namespace Apstory.ApstoryTsqlCodeGen.InterfaceGenerator
                 string fileName = "I" + tableWithIndex.TABLE_NAME + type + (addSchemaPath ? "." + schema.ToUpper() : "") + ".Index.Gen.cs";
                 string filePath;
                 if (_GenPath.Length > 0)
-                    filePath = Path.Join( path, (addSchemaPath ? schema.ToUpper() : string.Empty), _GenPath.Replace(".", ""), fileName);
+                    filePath = Path.Join(path, (addSchemaPath ? schema.ToUpper() : string.Empty), _GenPath.Replace(".", ""), fileName);
                 else
                     filePath = Path.Join(path, (addSchemaPath ? schema.ToUpper() : string.Empty), fileName);
 
